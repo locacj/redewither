@@ -1,0 +1,625 @@
+/*!
+ * TebexAccounts Library
+ * Author: Tebex
+ */
+
+if (!window.location.origin) { // Some browsers (mainly IE) does not have this property, so we need to build it manually...
+  window.location.origin = window.location.protocol + '//' + window.location.hostname + (window.location.port ? (':' + window.location.port) : '');
+}
+
+(function (root, factory) {
+    var pluginName = 'TebexAccounts';
+
+    if (typeof define === 'function' && define.amd) {
+        define([], factory(pluginName));
+    } else if (typeof exports === 'object') {
+        module.exports = factory(pluginName);
+    } else {
+        root[pluginName] = factory(pluginName);
+    }
+}(this, function (pluginName) {
+    'use strict';
+
+    var endpoint = "https://server.tebex.io";
+
+    var defaults = {
+        accountId: 0,
+        usernameId: '',
+        apiEndpoint: endpoint + '/accounts/',
+        barBg: '#1b4fa2',
+        barColor: '#fff',
+        templates: {
+            'loginBar' : '<div class="tebexContainer"><div class="tebexProfile"></div><div class="tebexButtons"></div></div>',
+            'loginButtons' : '<a class="tebexLoginBtn" data-tebex-do="loginModal">LOG IN TO TEBEX</a> <a class="tebexSignupBtn" data-tebex-do="signupModal">SIGN UP TO TEBEX</a>',
+            'logoutButtons' : '<span class="tebexEmailAddress">%emailAddress%</span> <a class="tebexManageAccount" href="https://server.tebex.io/profiles" target="_blank"><span id="manageAccountText">MANAGE ACCOUNT</span><span id="manageAccountIcon" style="display: none;"><img src="' + endpoint + '/tebexAccounts/settings.png" alt="Manage Account" /></span></a><a class="tebexLogoutBtn" data-tebex-do="logout"><span id="logoutIcon" style="display: none;"><img src="' + endpoint + '/tebexAccounts/signout.png" alt="Manage Account" /></span><span id="logoutText">LOG OUT</span></a>',
+            'loginIframe' : '<iframe class="tebexIframe" style="height:315px;" src="%apiEndpoint%login?account=%accountId%&return_url=%return_url%"></iframe>',
+            'registerIframe' : '<iframe class="tebexIframe" style="height:460px;" src="%apiEndpoint%register?account=%accountId%&return_url=%return_url%"></iframe>',
+            'profileItemMain' : '<div class="tebexProfileItem tebexProfilePicker" data-tebex-do="showDropdown"><div class="tebexAvatar"><img src="%avatarUrl%" /></div> %profilename%</div>',
+            'noProfileItemMain' : '<div class="tebexProfileItem tebexChooseProfile tebexProfilePicker" data-tebex-do="showDropdown">Choose a profile</div>',
+            'profileItem' : '<div class="tebexProfileItem" data-tebex-do="selectProfile" data-tebex-profileid="%profileid%"><div class="tebexAvatar"><img src="%avatarUrl%" /></div> %profilename%</div>',
+            'dropdown' : '<div class="tebexDropdown">%dropdownContents%</div>',
+            'createProfile' : '<a class="tebexBtnDefault tebexBtn" href="' + endpoint + '/profiles" target="_blank"> ➕ Add New Profile</a>',
+            'modalChrome' : '<div class="tebexModalCover">\
+                <div class="tebexModal">\
+                    <div class="tebexModalTitle">%modalTitle%</div><div class="tebexModalClose" data-tebex-do="closeModal">×</div>\
+                    <div class="tebexModalBody">%modalBody%</div>\
+                </div>\
+            </div>',
+            'css'           : 'body {\
+            padding-top:52px;\
+            }\
+            .tebexLogin {\
+                font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;\
+                height: 52px;\
+                background: %barBg%;\
+                color: %barColor%;\
+                display:block !important;\
+                width:100%;\
+                opacity:1 !important;\
+                visibility: visible !important;\
+                position:absolute;\
+                top:0px;\
+                left:0px;\
+                font-size:90%;\
+                z-index:1337;\
+            }\
+            @media only screen and (max-width: 715px) {\
+                span#manageAccountIcon, span#logoutIcon {\
+                    display: inline !important;\
+                    font-size: 21px;\
+                    line-height: 0;\
+                    top: 2.5px;\
+                    position: relative;\
+                }\
+                span#manageAccountText, span#logoutText {\
+                    display: none !important;\
+                }\
+            }\
+            .xpaystation-widget-lightbox {\
+              z-index: 31337 !important;\
+            }\
+            .tebexProfile {\
+                background: rgba(0, 0, 0, 0.25);\
+                width: 200px;\
+                height:100%;\
+                float:left;\
+                display:none;\
+                position:relative;\
+            }\
+            .tebexDropdown {\
+                display:none;\
+                width:200px;\
+                background:#FFF;\
+                x-min-height:100px;\
+                position:absolute;\
+                top:52px;\
+                left:0px;\
+                border: 1px solid #EEE;\
+                z-index:100;\
+                color: #222;\
+                line-height:100%;\
+            }\
+            .tebexDropdown:before {\
+                display:block;\
+                width:0px;\
+                height:00px;\
+                background:transparent;\
+                border-top:10px  solid transparent;\
+                border-left:10px solid transparent;\
+                border-right:10px solid transparent;\
+                border-bottom:10px solid #FFF;\
+                content:"";\
+                position:relative;\
+                top:-20px;\
+                right:-160px;\
+                margin-bottom:-20px;\
+            }\
+            .tebexProfile.active, .tebexDropdown.active {\
+                display:block;\
+            }\
+            .tebexButtons {\
+                x-width:353px;\
+                height:100%;\
+                float:right;\
+                text-align:right;\
+                line-height:52px;\
+                font-size:12px;\
+            }\
+            .tebexBtn {\
+                display:block;\
+                width:80%;\
+                margin: 10px 10%;\
+            }\
+            .tebexBtnDefault {\
+                color: #333;\
+                background-color: %barColor%;\
+                border-color: #ccc;\
+                font-size: 14px;\
+                padding: 6px 12px;\
+                border-radius: 4px;\
+                text-align:center;\
+                vertical-align:middle;\
+                line-height:1.42857143;\
+            }\
+            .tebexContainer {\
+                width:100%;\
+                max-width:1024px;\
+                margin:0px auto;\
+                padding:0 15px 0 0;\
+                height:100%;\
+            }\
+            .tebexLogoutBtn, .tebexSignupBtn, .tebexManageAccount {\
+                margin-left:10px;\
+                border:1px solid %barColor%;\
+                border-radius:3px;\
+                padding:8px 10px;\
+                color:%barColor%;\
+                cursor:pointer;\
+            }\
+            .tebexSignupBtn {\
+                background: %barColor%;\
+                color:%barBg%;\
+            }\
+            .tebexLoginBtn, .tebexLoginBtn:hover {\
+                color: %barColor%;\
+                cursor:pointer;\
+            }\
+            .tebexLogoutBtn:hover, .tebexManageAccount:hover, .tebexManageAccount:focus {\
+                background: %barColor%;\
+                color:%barBg%\
+            }\
+            .tebexModal {\
+                position:fixed;\
+                top:100px;\
+                left:50%;\
+                width:310px;\
+                margin-left:-155px;\
+                min-height:300px;\
+                background:#FFF;\
+            }\
+            .tebexModalTitle,.tebexModalClose {\
+                height:50px;\
+                line-height:50px;\
+                font-size:15px;\
+                font-weight:bold;\
+            }\
+            .tebexModalTitle {\
+                width:60%;\
+                height:100%;\
+                float:left;\
+                padding-left:20px;\
+            }\
+            .tebexModalClose {\
+                text-align:center;\
+                float:right;\
+                border-left:1px solid #DDD;\
+                width:50px;\
+                font-size:260%;\
+                font-weight:100;\
+                cursor:pointer;\
+            }\
+            .tebexModalBody {\
+                padding:20px;\
+                clear:both;\
+                border-top:1px solid #DDD;\
+            }\
+            .tebexModalCover {\
+                position:fixed;\
+                width:100%;\
+                height:100%;\
+                top:0px;\
+                left:0px;\
+                z-index:50;\
+                background:rgba(0,0,0,0.6);\
+                color:#333;\
+            }\
+            .tebexIframe {\
+                border:0px;\
+                width:100%;\
+                overflow:hidden;\
+            }\
+            .tebexAvatar {\
+                width:25px;\
+                height:25px;\
+                border-radius:12px;\
+                margin:13px;\
+                float:left;\
+                overflow:hidden;\
+                line-height:100%;\
+            }\
+            .tebexAvatar img {\
+                width:100%;\
+                height:100%;\
+            }\
+            .tebexProfileItem {\
+                height:52px;\
+                border-bottom:1px solid #EEE;\
+                line-height:52px;\
+                cursor:pointer;\
+            }\
+            .tebexChooseProfile {\
+                padding-left:15px;\
+                font-size:115%;\
+            }\
+            .tebexProfilePicker:after {\
+                content: "⌄";\
+                font-size:180%;\
+                display:block;\
+                float:right;\
+                height:40px;\
+                line-height:40px;\
+                margin-right:10px;\
+            }\
+            .tebexProfilePicker {\
+                border-bottom: 0;\
+            }\
+            @media only screen\
+            and (max-width: 565px) {\
+                .tebexEmailAddress { display:none; }\
+                .tebexButtons { width: 300px; }\
+                .tebexProfile.active + .tebexButtons { width: 100px; }\
+                .tebexLogoutBtn, .tebexSignupBtn, .tebexManageAccount {\
+                    margin-left:10px;\
+                    border:0;\
+                    border-radius:3px;\
+                    padding:0 5px;\
+                }\
+            }'
+        },
+        autoLogin: false
+    };
+
+    var Instance;
+
+    var loginPoller;
+
+
+    /**
+     * Merge defaults with user options
+     * @param {Object} defaults Default settings
+     * @param {Object} options User options
+     */
+    var extend = function (target, options) {
+        var prop, extended = {};
+        for (prop in defaults) {
+            if (Object.prototype.hasOwnProperty.call(defaults, prop)) {
+                extended[prop] = defaults[prop];
+            }
+        }
+        for (prop in options) {
+            if (Object.prototype.hasOwnProperty.call(options, prop)) {
+                extended[prop] = options[prop];
+            }
+        }
+        return extended;
+    };
+
+
+    /**
+     * Some private helper function
+     */
+
+    var ajaxRequest = function(method, url, data) {
+
+        return new Promise(function(resolve, reject) {
+            url = url + '?account=' + Instance.options.accountId;
+            var xmlHttp = new XMLHttpRequest();
+            xmlHttp.onreadystatechange = function()
+            {
+
+                if(xmlHttp.readyState == 4 && xmlHttp.status == 200)
+                {
+                    resolve(JSON.parse(xmlHttp.responseText));
+                    return;
+                } if(xmlHttp.readyState == 4)
+                {
+                    reject(Error(xmlHttp.status));
+                }
+
+            };
+
+            xmlHttp.withCredentials = true;
+            xmlHttp.open(method, url);
+            xmlHttp.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+
+            if (method == 'post' && data) {
+                xmlHttp.setRequestHeader('Content-Type', 'application/x-www-form-urlencoded');
+            }
+
+
+            if (data) {
+                xmlHttp.send(data);
+            } else {
+                xmlHttp.send();
+            }
+        });
+
+    };
+
+    var replacePlaceholders = function(html, placeholders) {
+        if (!placeholders) {
+            placeholders = {};
+        }
+
+        // private helper code goes here
+        for (var k in placeholders) {
+            var find = new RegExp(k, "g");
+            html = html.replace(find, placeholders[k]);
+        }
+
+        return html;
+    };
+
+    var loginContainer = function() {
+        return document.getElementsByClassName("tebexLogin")[0];
+    };
+
+    var closeModal = function(element) {
+        endCheckForLogin();
+        if (document.getElementsByClassName("tebexModalCover").length > 0) {
+            var node = loginContainer().removeChild(document.getElementsByClassName("tebexModalCover")[0]);
+            node = null;
+        }
+    };
+
+    var loginModal = function(element) {
+
+        var modalHtml = Instance.options.templates.modalChrome;
+        var placeholders = {
+            '%accountId%' : Instance.options.accountId,
+            '%apiEndpoint%' : Instance.options.apiEndpoint,
+            '%return_url%' : window.location.origin + '/tebexAccounts/register'
+
+        };
+
+
+        var loginHtml = replacePlaceholders(Instance.options.templates.loginIframe, placeholders);
+
+        var replacements = {
+            '%modalTitle%' : 'Log in to Tebex',
+            '%modalBody%' : loginHtml
+        };
+
+        modalHtml = replacePlaceholders(modalHtml, replacements);
+
+        loginContainer().innerHTML = loginContainer().innerHTML + modalHtml;
+        checkForLogin();
+    };
+
+    var signupModal = function(element) {
+        var modalHtml = Instance.options.templates.modalChrome;
+        var placeholders = {
+            '%accountId%' : Instance.options.accountId,
+            '%apiEndpoint%' : Instance.options.apiEndpoint,
+            '%return_url%' : window.location.origin + '/tebexAccounts/register'
+
+        };
+
+        var registerHtml = replacePlaceholders(Instance.options.templates.registerIframe, placeholders);
+
+        var replacements = {
+            '%modalTitle%' : 'Sign up to Tebex',
+            '%modalBody%' : registerHtml
+        };
+
+        modalHtml = replacePlaceholders(modalHtml, replacements);
+
+        loginContainer().innerHTML = loginContainer().innerHTML + modalHtml;
+        checkForLogin();
+    };
+
+    var logout = function(element) {
+        ajaxRequest("get", Instance.options.apiEndpoint + 'logout').then(function(response) {
+            getAccount();
+        });
+    };
+
+    var claimBasket = function(basketId, hash) {
+        var url = Instance.options.apiEndpoint + 'basket/' + basketId + '/claim';
+        ajaxRequest("post", url, encodeURI('hash=' + hash)).then(function(response) {
+        }, function (error) {
+        });
+    }
+
+    var showDropdown = function(element) {
+        if (element.parentNode.getElementsByClassName("tebexDropdown")[0].classList.contains("active")) {
+            element.parentNode.getElementsByClassName("tebexDropdown")[0].classList.remove("active");
+        } else {
+            element.parentNode.getElementsByClassName("tebexDropdown")[0].classList.add("active");
+        }
+
+    }
+
+    var selectProfile = function(element) {
+        ajaxRequest("post", "/tebexAccounts/createBasket/" + element.dataset.tebexProfileid).then(function(response) {
+            claimBasket(response.basketId, response.hash);
+            setTimeout(function() {
+                location.reload();
+            }, 300);
+
+        }, function (error) {
+
+        });
+    }
+
+    var getAccount = function() {
+        var url = Instance.options.apiEndpoint + '';
+
+        ajaxRequest("get", url).then(function(response) {
+            endCheckForLogin();
+            document.getElementsByClassName("tebexProfile")[0].classList.add("active");
+            var buttons = replacePlaceholders(Instance.options.templates.logoutButtons, {'%emailAddress%' : response.email});
+            loginContainer().getElementsByClassName("tebexButtons")[0].innerHTML = buttons;
+            getProfiles();
+        }, function(error) {
+            document.getElementsByClassName("tebexProfile")[0].classList.remove("active");
+            var buttons = Instance.options.templates.loginButtons;
+            loginContainer().getElementsByClassName("tebexButtons")[0].innerHTML = buttons;
+        });
+
+    };
+
+    var getProfiles = function() {
+        var url = Instance.options.apiEndpoint + 'profiles/';
+        ajaxRequest("get", url).then(function(response) {
+           var profileHtml = '';
+
+           var dropdownHtml = '';
+           var i =0;
+
+           while (i < response.data.length) {
+               //Is this the one that we want?
+               var profile = response.data[i];
+               var placeholders = {
+                   '%profilename%' : profile.username,
+                   '%avatarUrl%' : profile.avatar,
+                   '%profileid%' : profile.id
+               };
+
+               if (profile.id == Instance.options.usernameId && Instance.options.autoLogin === true) {
+                   profileHtml = replacePlaceholders(Instance.options.templates.profileItemMain, placeholders);
+               }
+
+               if (response.data.length == 1 && Instance.options.usernameId == "" && Instance.options.autoLogin === true) {
+                   //We only have one profile, and they've not logged in yet, so use it!
+                   ajaxRequest("post", "/tebexAccounts/createBasket/" + profile.id).then(function(response) {
+                       claimBasket(response.basketId, response.hash);
+                       setTimeout(function() {
+                           location.reload();
+                       }, 300);
+                   }, function (error) {
+
+                   });
+               }
+
+               if(profile.id === Instance.options.usernameId && profile.verified === true && Instance.options.claimed === false) {
+                   ajaxRequest("post", "/tebexAccounts/createBasket/" + profile.id).then(function(response) {
+                       claimBasket(response.basketId, response.hash);
+                       setTimeout(function() {
+                           location.reload();
+                       }, 300);
+                   }, function (error) {
+
+                   });
+               } else if (Instance.options.claimed === true && profile.id === Instance.options.usernameId) {
+                   profileHtml = replacePlaceholders(Instance.options.templates.profileItemMain, placeholders);
+               }
+
+
+               dropdownHtml = dropdownHtml + replacePlaceholders(Instance.options.templates.profileItem, placeholders);
+               i++;
+           }
+
+            if (profileHtml == '') {
+                //If they have lots of profiles (or no profiles), and they've not yet picked one, then we need to prompt them...
+                profileHtml = Instance.options.templates.noProfileItemMain;
+            }
+
+           dropdownHtml = dropdownHtml + Instance.options.templates.createProfile;
+
+           dropdownHtml = replacePlaceholders(Instance.options.templates.dropdown, {'%dropdownContents%' : dropdownHtml});
+
+
+
+           profileHtml = profileHtml + dropdownHtml;
+
+           document.getElementsByClassName("tebexProfile")[0].innerHTML = profileHtml;
+        }, function(error) {
+
+        });
+    };
+
+    var checkForLogin = function() {
+        endCheckForLogin();
+        console.log("Start login check");
+        loginPoller = setInterval(function() {
+            getAccount();
+        }, 1500);
+    };
+
+    var endCheckForLogin = function() {
+        if (loginPoller) {
+            console.log("End login check");
+            clearInterval(loginPoller);
+            loginPoller = false;
+
+            if (document.getElementsByClassName("tebexModalCover").length > 0) {
+                closeModal();
+            }
+        }
+    };
+
+
+    var addProfile = function() {
+        var url = this.options.apiEndpoint + 'profiles/';
+    };
+
+    var handleEvent = function(event) {
+        var source = event.target || event.srcElement;
+        if (source && source.dataset.tebexDo) {
+            console.log("Call " + source.dataset.tebexDo);
+            eval(source.dataset.tebexDo + "(source)");
+        }
+    };
+
+
+    /**
+     * Plugin Object
+     * @param element The html element to initialize
+     * @param {Object} options User options
+     * @constructor
+     */
+    function Plugin(element, options) {
+
+        if (Instance) {
+            console.error("TebexAccounts is already loaded");
+            return Instance;
+        }
+
+        this.element = element;
+        this.options = extend(defaults, options);
+        Instance = this;
+
+        var style = document.createElement("style");
+        style.type = 'text/css';
+        var placeHolders = {
+            '%barBg%' : this.options.barBg,
+            '%barColor%' : this.options.barColor
+        }
+        style.innerHTML = replacePlaceholders(this.options.templates.css, placeHolders);
+      
+        var loginBar = document.createElement("div");
+        loginBar.classList.add("tebexLogin");
+        loginBar.innerHTML = this.options.templates.loginBar;
+
+        document.getElementsByTagName("head")[0].appendChild(style);
+
+        document.body.insertBefore(loginBar, document.body.childNodes[0]);
+
+        document.getElementsByClassName("tebexLogin")[0].addEventListener("click", function(event) { handleEvent(event) });
+        //init code goes here
+        console.log('Plugin inititalized');
+        var tebexBarLoadedEvent = new Event('tebexBarLoaded');
+        document.body.dispatchEvent(tebexBarLoadedEvent);
+
+        getAccount();
+    }
+
+
+    // Plugin prototype
+    Plugin.prototype = {
+
+        loginCallback: function() {
+            endCheckForLogin();
+            getAccount();
+            closeModal();
+        },
+        registerCallback: function() {
+            endCheckForLogin();
+            getAccount();
+            closeModal();
+        }
+    };
+
+    return Plugin;
+}));
